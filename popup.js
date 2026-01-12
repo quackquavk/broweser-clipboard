@@ -1,5 +1,6 @@
 // ===== DOM Elements =====
 const searchInput = document.getElementById("searchInput");
+const newItemTitle = document.getElementById("newItemTitle");
 const newItemInput = document.getElementById("newItemInput");
 const addBtn = document.getElementById("addBtn");
 const itemsContainer = document.getElementById("itemsContainer");
@@ -45,32 +46,45 @@ async function saveItems() {
 function setupEventListeners() {
   // Add new item
   addBtn.addEventListener("click", addItem);
+
+  // Keyboard shortcuts
   newItemInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
       addItem();
     }
   });
 
+  newItemTitle.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      newItemInput.focus();
+    }
+  });
+
   // Search
   searchInput.addEventListener("input", handleSearch);
-
-  // Handle paste in input
-  newItemInput.addEventListener("paste", () => {
-    // Focus stays on input after paste
-    setTimeout(() => newItemInput.focus(), 0);
-  });
 }
 
 // ===== Core Functions =====
 function addItem() {
+  const title = newItemTitle.value.trim();
   const content = newItemInput.value.trim();
+
+  if (!title) {
+    showToast("Please enter a title", true);
+    newItemTitle.focus();
+    return;
+  }
+
   if (!content) {
-    showToast("Please enter some text", true);
+    showToast("Please enter some content", true);
+    newItemInput.focus();
     return;
   }
 
   const newItem = {
     id: Date.now().toString(),
+    title: title,
     content: content,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -79,8 +93,9 @@ function addItem() {
   clipboardItems.unshift(newItem);
   saveItems();
   renderItems();
+  newItemTitle.value = "";
   newItemInput.value = "";
-  newItemInput.focus();
+  newItemTitle.focus();
   showToast("Added to vault!");
 }
 
@@ -104,15 +119,11 @@ function deleteItem(id) {
   showToast("Item deleted");
 }
 
-function editItem(id, newContent) {
-  const item = clipboardItems.find((i) => i.id === id);
-  if (!item) return;
-
-  item.content = newContent;
-  item.updatedAt = new Date().toISOString();
-  saveItems();
-  renderItems();
-  showToast("Item updated");
+function toggleExpand(id) {
+  const itemEl = document.querySelector(`.item[data-id="${id}"]`);
+  if (itemEl) {
+    itemEl.classList.toggle("expanded");
+  }
 }
 
 function handleSearch() {
@@ -120,8 +131,10 @@ function handleSearch() {
   const items = document.querySelectorAll(".item");
 
   items.forEach((item) => {
-    const text = item.querySelector(".item-text").textContent.toLowerCase();
-    if (text.includes(query)) {
+    const title = item.querySelector(".item-title").textContent.toLowerCase();
+    const content =
+      item.querySelector(".item-content-text")?.textContent.toLowerCase() || "";
+    if (title.includes(query) || content.includes(query)) {
       item.style.display = "";
     } else {
       item.style.display = "none";
@@ -154,44 +167,48 @@ function createItemElement(item) {
   li.className = "item";
   li.dataset.id = item.id;
 
-  const truncatedContent =
-    item.content.length > 150
-      ? item.content.substring(0, 150) + "..."
-      : item.content;
-
   li.innerHTML = `
-    <div class="item-content">
-      <div class="item-text" title="Double-click to edit, click to copy">${escapeHtml(truncatedContent)}</div>
+    <div class="item-header">
+      <svg class="item-title-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M16 4H18C18.5304 4 19.0391 4.21071 19.4142 4.58579C19.7893 4.96086 20 5.46957 20 6V20C20 20.5304 19.7893 21.0391 19.4142 21.4142C19.0391 21.7893 18.5304 22 18 22H6C5.46957 22 4.96086 21.7893 4.58579 21.4142C4.21071 21.0391 4 20.5304 4 20V6C4 5.46957 4.21071 4.96086 4.58579 4.58579C4.96086 4.21071 5.46957 4 6 4H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M15 2H9C8.44772 2 8 2.44772 8 3V5C8 5.55228 8.44772 6 9 6H15C15.5523 6 16 5.55228 16 5V3C16 2.44772 15.5523 2 15 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span class="item-title">${escapeHtml(item.title)}</span>
+      <svg class="item-expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="item-body">
+      <div class="item-content-text">${escapeHtml(item.content)}</div>
       <div class="item-actions">
         <button class="action-btn copy-btn" title="Copy to clipboard">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/>
             <path d="M5 15H4C2.89543 15 2 14.1046 2 13V4C2 2.89543 2.89543 2 4 2H13C14.1046 2 15 2.89543 15 4V5" stroke="currentColor" stroke-width="2"/>
           </svg>
+          Copy
         </button>
         <button class="action-btn delete-btn" title="Delete item">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M3 6H21M19 6V20C19 21 18 22 17 22H7C6 22 5 21 5 20V6M8 6V4C8 3 9 2 10 2H14C15 2 16 3 16 4V6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
+          Delete
         </button>
       </div>
-    </div>
-    <div class="item-meta">
-      <span class="item-date">${formatDate(item.createdAt)}</span>
-      <span class="item-length">${item.content.length} chars</span>
+      <div class="item-meta">
+        <span class="item-date">${formatDate(item.createdAt)}</span>
+        <span class="item-length">${item.content.length} chars</span>
+      </div>
     </div>
   `;
 
   // Event listeners
-  const textEl = li.querySelector(".item-text");
+  const header = li.querySelector(".item-header");
   const copyBtn = li.querySelector(".copy-btn");
   const deleteBtn = li.querySelector(".delete-btn");
 
-  // Single click to copy
-  textEl.addEventListener("click", () => copyItem(item.id));
-
-  // Double click to edit
-  textEl.addEventListener("dblclick", () => startEditing(item.id, textEl));
+  // Click header to expand/collapse
+  header.addEventListener("click", () => toggleExpand(item.id));
 
   copyBtn.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -204,47 +221,6 @@ function createItemElement(item) {
   });
 
   return li;
-}
-
-function startEditing(id, textEl) {
-  const item = clipboardItems.find((i) => i.id === id);
-  if (!item) return;
-
-  textEl.classList.add("editing");
-  textEl.contentEditable = true;
-  textEl.textContent = item.content; // Show full content when editing
-  textEl.focus();
-
-  // Select all text
-  const range = document.createRange();
-  range.selectNodeContents(textEl);
-  const selection = window.getSelection();
-  selection.removeAllRanges();
-  selection.addRange(range);
-
-  const finishEditing = () => {
-    const newContent = textEl.textContent.trim();
-    textEl.classList.remove("editing");
-    textEl.contentEditable = false;
-
-    if (newContent && newContent !== item.content) {
-      editItem(id, newContent);
-    } else {
-      renderItems(); // Reset to truncated view
-    }
-  };
-
-  textEl.addEventListener("blur", finishEditing, { once: true });
-  textEl.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      textEl.blur();
-    }
-    if (e.key === "Escape") {
-      textEl.textContent = item.content;
-      textEl.blur();
-    }
-  });
 }
 
 function updateItemCount() {
